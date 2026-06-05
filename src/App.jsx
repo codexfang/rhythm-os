@@ -190,6 +190,7 @@ function App() {
           phaseData={phaseData}
           layers={layers}
           isPlaying={isPlaying}
+          bpm={bpm}
         />
       </div>
       <aside className="sidebar">

@@ -22,6 +22,3 @@ Rhythm OS is an interactive polyrhythm generator that lets you explore multiple 
 - **`requestAnimationFrame`** — Smooth 60fps visual animation loop
 - **CSS Custom Properties** — Dark theme with modern responsive design
 
-## License
-
-MIT
