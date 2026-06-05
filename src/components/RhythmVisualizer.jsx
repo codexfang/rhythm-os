@@ -15,7 +15,7 @@ function RhythmVisualizer({ phaseData, layers, isPlaying, bpm }) {
   const bpmRef = useRef(bpm);
   const lastPhaseTimeRef = useRef(0);
   const lastCyclePhaseRef = useRef(0);
-  const trailRef = useRef([]);
+  const trailsRef = useRef(new Map());
 
   phaseRef.current = phaseData;
   layersRef.current = layers;
@@ -33,17 +33,16 @@ function RhythmVisualizer({ phaseData, layers, isPlaying, bpm }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const container = canvas.parentElement;
 
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
-      const { width, height } = container.getBoundingClientRect();
+      const { width, height } = canvas.getBoundingClientRect();
       canvas.width = width * dpr;
       canvas.height = height * dpr;
     };
 
     const observer = new ResizeObserver(resize);
-    observer.observe(container);
+    observer.observe(canvas.parentElement);
     resize();
 
     return () => observer.disconnect();
@@ -57,6 +56,9 @@ function RhythmVisualizer({ phaseData, layers, isPlaying, bpm }) {
     const w = canvas.width / dpr;
     const h = canvas.height / dpr;
 
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+
     const cx = w / 2;
     const cy = h / 2;
     const maxRadius = Math.min(w, h) * 0.4;
@@ -65,13 +67,13 @@ function RhythmVisualizer({ phaseData, layers, isPlaying, bpm }) {
     const isPlaying = playingRef.current;
     const bpmVal = bpmRef.current;
 
-    ctx.clearRect(0, 0, w, h);
-
     if (layers.length === 0) {
       ctx.fillStyle = '#666';
       ctx.font = '14px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Add a rhythm layer to begin', cx, cy + 40);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      animFrameRef.current = requestAnimationFrame(draw);
       return;
     }
 
@@ -88,7 +90,6 @@ function RhythmVisualizer({ phaseData, layers, isPlaying, bpm }) {
     }
 
     const layerRadius = maxRadius / Math.max(layers.length, 1);
-    const trail = trailRef.current;
 
     layers.forEach((layer, index) => {
       const radius = layerRadius * (index + 1) * 0.85;
@@ -104,28 +105,29 @@ function RhythmVisualizer({ phaseData, layers, isPlaying, bpm }) {
 
       if (orbitAngle !== null && !layer.muted) {
         const orbPos = polarToCartesian(cx, cy, radius, orbitAngle);
-        trail.push({ x: orbPos.x, y: orbPos.y, life: 1 });
-
-        ctx.beginPath();
-        ctx.arc(orbPos.x, orbPos.y, 1.5, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.globalAlpha = 0.3;
-        ctx.fill();
-      }
-
-      for (let i = trail.length - 1; i >= 0; i--) {
-        trail[i].life -= 0.035;
-        if (trail[i].life <= 0) {
-          trail.splice(i, 1);
+        let trail = trailsRef.current.get(layer.id);
+        if (!trail) {
+          trail = [];
+          trailsRef.current.set(layer.id, trail);
         }
+        trail.push({ x: orbPos.x, y: orbPos.y, life: 1 });
       }
 
-      for (const t of trail) {
-        ctx.beginPath();
-        ctx.arc(t.x, t.y, 1.5 * t.life, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.globalAlpha = t.life * 0.25;
-        ctx.fill();
+      let trail = trailsRef.current.get(layer.id);
+      if (trail) {
+        for (let i = trail.length - 1; i >= 0; i--) {
+          trail[i].life -= 0.04;
+          if (trail[i].life <= 0) {
+            trail.splice(i, 1);
+          }
+        }
+        for (const t of trail) {
+          ctx.beginPath();
+          ctx.arc(t.x, t.y, 2 * t.life, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.globalAlpha = t.life * 0.3;
+          ctx.fill();
+        }
       }
 
       ctx.globalAlpha = layer.muted ? 0.25 : 1;
@@ -204,6 +206,7 @@ function RhythmVisualizer({ phaseData, layers, isPlaying, bpm }) {
       ctx.restore();
     });
 
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     animFrameRef.current = requestAnimationFrame(draw);
   }, []);
 
